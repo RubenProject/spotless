@@ -1,6 +1,6 @@
 PROG = spotless
-SOURCES = $(PROG).c sqlite3.c db_plugin_sqlite.c db_ops.c mongoose/mongoose.c
-CFLAGS = -W -Wall $(CFLAGS_EXTRA)
+SOURCES = $(PROG).c sqlite3.c database.c template.c list.c mongoose/mongoose.c
+CFLAGS = -g -W -Wall $(CFLAGS_EXTRA) -DMG_ENABLE_HTTP_STREAMING_MULTIPART
 
 
 ifeq ($(OS), Windows_NT)

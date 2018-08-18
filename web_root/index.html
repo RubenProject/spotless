@@ -5,65 +5,104 @@
     <title>Spotless</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" type="text/css" href="style.css"></script>
-    <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
-    <script language="javascript" type="text/javascript">
-      jQuery(function() {
+    <script src="jquery.js"></script>
+    <script type="text/javascript">
+    function updateProgress(evt) {
+      if (evt.lengthComputable) {
+        document.getElementById("output").textContent =
+              "Uploaded " + evt.loaded + " of " + evt.total + " bytes";
+      }
+    }
+    function uploadFile() {
+      var file_data = new FormData(document.getElementById('upload_form'));
+      $.ajax({
+        url: "/upload",
+        type: "POST",
+        data: file_data,
+        processData: false,
+        contentType: false,
+        cache: false,
+        xhr: function() {
+          myXhr = $.ajaxSettings.xhr();
+          if(myXhr.upload){
+            myXhr.upload.addEventListener('progress',updateProgress, false); // for handling the progress of the upload
+          }
+          return myXhr;
+        },
+      }).done(function(data) {
+          document.getElementById("output").textContent = "Result: " + data;
       });
-    </script>
+      return false;
+    }
+  </script>
 </head>
 <body>
   <div class="content">
     <h1>Spotless</h1>
     <div id="0000" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0001" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0002" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0003" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0004" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0005" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0006" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0007" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0008" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
     <div id="0009" class="contentTile">
-        <img class="contentThumb" src="../thumb/example.png"/>
+        <img class="contentThumb" src="thumb/example.png"/>
         <p class="contentTitle"> Example Title </p>
         <p class="contentDesc"> This is an example description of the content <p>
     </div>
   </div>
+  <h1>Upload file using Ajax - that also gives progress report</h1>
+  <form method="post" id="upload_form" name="file" onsubmit="return uploadFile();">
+    <label>Select a file:</label><br>
+    <input type="file" id="file" name="file" required /><br>
+    <label>file title:</label><br>
+    <input type="text" id="title" name="title" required/><br>
+    <label>file description:</label><br>
+    <input type="text" id="description" name="description" required/><br>
+    <label>file category:</label><br>
+    <input type="text" id="category" name="category" required/><br>
+    <input type="submit" value="Upload" />
+  </form>
+  <br><br><div id="output"></div>
+
 </body>
 </html>

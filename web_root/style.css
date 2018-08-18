@@ -47,6 +47,13 @@ h1 {
     width 100%;
 }
 
+.videoplayer {
+    margin: 1em;
+}
+
+
+
+
 label { 
     display: inline-block; 
     min-width: 7em; 
