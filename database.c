@@ -1,6 +1,6 @@
 #include "database.h"
 #include "sqlite3.h"
-#include "list.h"
+#include "queue.h"
 
 #include "stdio.h"
 #include "stdlib.h"
@@ -166,7 +166,7 @@ void db_update_table(void *db, const char *tablename){
 }
 
 
-void db_get_tables(void *db, struct str_list **table_list){
+void db_get_tables(void *db, struct list *table_list){
     sqlite3_stmt *stmt;
     char sql[STMT_MAX] = "SELECT name FROM sqlite_master WHERE type='table'";
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
@@ -176,12 +176,12 @@ void db_get_tables(void *db, struct str_list **table_list){
     }
     size_t i;
     char ctext[NAME_MAX];
-    if (*table_list == NULL)
-        *table_list = list_create();
+    if (table_list == NULL)
+        table_list = list_init();
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         strcpy(ctext, sqlite3_column_text(stmt, 0));
         if (strcmp(ctext, "sqlite_sequence") != 0){
-            list_add(table_list, ctext);
+            list_push(table_list, ctext);
         }
     }
     if (rc != SQLITE_DONE) {

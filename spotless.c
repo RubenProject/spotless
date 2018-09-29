@@ -6,7 +6,7 @@
 #include "mongoose/mongoose.h"
 #include "database.h"
 #include "template.h"
-#include "list.h"
+#include "queue.h"
 
 #include "dirent.h"
 #include "sys/types.h"
@@ -14,11 +14,12 @@
 #define MEDIA_FOLDER "web_root/media"
 #define NAME_MAX 100
 
-static const char *s_http_port = "8004";
+static const char *s_http_port = "8001";
 static struct mg_serve_http_opts s_http_server_opts;
 static int s_sig_num = 0;
 static void *s_db_handle = NULL;
 static const char *s_db_path = "spotless.db";
+static struct list *s_cat_list;
 
 
 struct file_writer_data {
@@ -144,32 +145,65 @@ static void handle_upload(struct mg_connection *nc, int ev, void *ev_data) {
 }
 
 
+static int has_prefix(const char *uri, const char *prefix, char **target) {
+    if (strlen(uri) < strlen(prefix)){
+        *target = NULL;
+        return 0;
+    }
+    if (!strncmp(uri, prefix, strlen(prefix))){
+        char *p, *q;
+        p = uri + strlen(prefix);
+        q = p;
+        while (*q != ' '){
+            q++;
+        }
+        *target = malloc(q - p + 1);
+        strncpy(*target, p, q - p);
+        *target[q-p] = '\0';
+        return 1;
+    } 
+    *target = NULL;
+    return 0;
+}
+
+
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
     struct http_message *hm = (struct http_message *) ev_data;
-    struct str_list *table_list;
-    char *html;
+    char *html, *t;
     switch (ev) {
         case MG_EV_HTTP_REQUEST:
-            table_list = list_create();
-            db_get_tables(s_db_handle, &table_list);
-            gen_home_html(&html, table_list);
-            mg_send_head(nc, 200, strlen(html), "Content-Type: text/html");
-            mg_printf(nc, "%.*s", (int)strlen(html), html);
-            list_free(&table_list);
-            //mg_serve_http(nc, hm, s_http_server_opts);
+            fprintf(stdout, "%s\n", hm->uri.p);
+            /* homepage request */
+            if (strncmp(hm->uri.p, "/", hm->uri.len) == 0){
+                gen_home_html(&html, s_cat_list);
+                mg_send_head(nc, 200, (int)strlen(html), "Content-Type: text/html");
+                mg_printf(nc, "%.*s", (int)strlen(html), html);
+                free(html);
+                html = NULL;
+            /* category browse request */
+            } else if (has_prefix(hm->uri.p, "/browse/", &t)) {
+                fprintf(stdout, "category: %s\n", t);
+                db_get_summaries(s_db_handle, t, sum);
+                gen_browse_html(&html);
+                mg_send_head(nc, 200, (int)strlen(html), "Content-Type: text/html");
+                mg_printf(nc, "%.*s", (int)strlen(html), html);
+                free(t);
+                free(html);
+                html = NULL;
+            /* video page request */
+            } else if (has_prefix(hm->uri.p, "/view/", &t)) {
+                //db_get_video(s_db_handle, t, sum);
+                gen_video_html(&html);
+                mg_send_head(nc, 200, (int)strlen(html), "Content-Type: text/html");
+                mg_printf(nc, "%.*s", (int)strlen(html), html);
+                free(t);
+                free(html);
+                html = NULL;
+            } else {
+                //static content
+                mg_serve_http(nc, hm, s_http_server_opts);
+            }
             break;
-            //serve the homepage
-            //if (strncmp(hm->uri.p, "/", hm->uri.len) == 0){
-                //struct str_list *table_list;
-                //table_list = list_create();
-                //db_get_tables(s_db_handle, &table_list);
-                //list_free(&table_list);
-            //}
-            // serve specific video
-            //} else if (strncmp(hm->uri.p, "/video", hm->uri.len) == 0){
-             //   fprintf(stdout, "unimplemented\n");
-            // show all videos in a category by date added
-            //} else {
         default:
             break;
     }
@@ -212,6 +246,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Cannot open DB [%s]\n", s_db_path);
         exit(EXIT_FAILURE);
     }
+    /* get table info */
+    s_cat_list = list_init();
+    db_get_tables(s_db_handle, s_cat_list);
 
     /* Run event loop until signal is received */
     printf("Starting RESTful server on port %s\n", s_http_port);
@@ -222,6 +259,7 @@ int main(int argc, char *argv[]) {
     /* Cleanup */
     mg_mgr_free(&mgr);
     db_close(&s_db_handle);
+    list_free(s_cat_list);
     
     printf("Exiting on signal %d\n", s_sig_num);
 
