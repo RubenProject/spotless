@@ -14,7 +14,7 @@
 #define MEDIA_FOLDER "web_root/media"
 #define NAME_MAX 100
 
-static const char *s_http_port = "8001";
+static const char *s_http_port = "8003";
 static struct mg_serve_http_opts s_http_server_opts;
 static int s_sig_num = 0;
 static void *s_db_handle = NULL;
@@ -27,7 +27,7 @@ struct file_writer_data {
     void *file_data;
     size_t file_size;
     char tablename[NAME_MAX];
-    struct sql_data *entry;
+    struct summary sum;
     struct buffer_data *buff;
 };
 
@@ -45,7 +45,7 @@ static void signal_handler(int sig_num) {
 
 
 static void copy_buffer(struct file_writer_data *data, struct mg_http_multipart_part *mp) {
-    if (strcmp(mp->var_name, "file") == 0){
+    /*if (strcmp(mp->var_name, "file") == 0){
         strcpy(data->tablename, "general");
         strcpy(data->filename, mp->file_name);
 
@@ -61,29 +61,29 @@ static void copy_buffer(struct file_writer_data *data, struct mg_http_multipart_
         memcpy(data->entry->value[data->entry->count], data->buff->p, data->buff->size);
         data->entry->value[data->entry->count][data->buff->size] = '\0';
         data->entry->count++;
-    }
+    }*/
 }
 
 
 static void write_file (struct file_writer_data *data) {
-    struct sql_data *p = malloc(sizeof(struct sql_data));
+    /*struct summary sum;
     int rc;
     FILE *fp;
     char path[NAME_MAX];
-    if (!db_get_by_fname(s_db_handle, data->tablename, data->filename, p)){
-        db_add(s_db_handle, data->tablename, data->entry);
+    if (!db_get_by_fname(s_db_handle, data->tablename, data->filename, &sum)){
+        db_add(s_db_handle, data->tablename, sum);
         sprintf(path, "%s/%s/%s", MEDIA_FOLDER, data->tablename, data->filename);
         if ((fp = fopen(path, "wb")) != 0){
             fprintf(stdout, "writing file: %s\n", path);
             fwrite(data->file_data, 1, data->file_size, fp);
             fclose(fp);
         }
-    }
+    }*/
 }
  
 
 static void handle_upload(struct mg_connection *nc, int ev, void *ev_data) {
-    struct file_writer_data *data = (struct file_writer_data *) nc->user_data;
+    /*struct file_writer_data *data = (struct file_writer_data *) nc->user_data;
     struct mg_http_multipart_part *mp = (struct mg_http_multipart_part *) ev_data;
 
     switch (ev) {
@@ -141,7 +141,7 @@ static void handle_upload(struct mg_connection *nc, int ev, void *ev_data) {
             }
             break;
         }
-    }
+    }*/
 }
 
 
@@ -169,6 +169,7 @@ static int has_prefix(const char *uri, const char *prefix, char **target) {
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
     struct http_message *hm = (struct http_message *) ev_data;
+    struct summary *sum;
     char *html, *t;
     switch (ev) {
         case MG_EV_HTTP_REQUEST:
@@ -183,7 +184,7 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
             /* category browse request */
             } else if (has_prefix(hm->uri.p, "/browse/", &t)) {
                 fprintf(stdout, "category: %s\n", t);
-                db_get_summaries(s_db_handle, t, sum);
+                db_get_summaries(s_db_handle, t, &sum);
                 gen_browse_html(&html);
                 mg_send_head(nc, 200, (int)strlen(html), "Content-Type: text/html");
                 mg_printf(nc, "%.*s", (int)strlen(html), html);
@@ -246,6 +247,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Cannot open DB [%s]\n", s_db_path);
         exit(EXIT_FAILURE);
     }
+    exit(0);
     /* get table info */
     s_cat_list = list_init();
     db_get_tables(s_db_handle, s_cat_list);

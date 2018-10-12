@@ -6,25 +6,23 @@
 #include "queue.h"
 
 #define MEDIA_FOLDER "web_root/media"
-#define COLUMN_MAX 4
-#define STMT_MAX 500
+#define STMT_MAX 1000
 #define NAME_MAX 100
 
 
-struct sql_data {
-    char column[10][NAME_MAX];
-    char value[10][NAME_MAX];
-    size_t count;
+struct summary{
+    struct list *column;
+    struct list *value;
 };
-
 
 
 
 void *db_open(const char *db_path);
 void db_close(void **db_handle);
-void db_add(void *db, const char *tablename, struct sql_data *data);
-int db_get_by_fname(void *db, const char *tablename, const char *fname, struct sql_data *p);
+void db_add(void *db, struct summary sum);
+void db_update(void *db, const char *cat);
 void db_get_tables(void *db, struct list *table_list);
+void db_get_summaries(void *db, char *cat, struct summary **sum);
 
 
 #endif

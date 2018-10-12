@@ -10,9 +10,26 @@
 #include "sys/types.h"
 
 
-#define CREATE_STMT_0 "CREATE TABLE IF NOT EXISTS "
-#define CREATE_STMT_1 "(ID INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT, title TEXT, description TEXT, category TEXT, date_added DATE DEFAULT (datetime('now','localtime')));"
+#define CREATE_STMT "CREATE TABLE IF NOT EXISTS video_master "\
+                    "(ID INTEGER PRIMARY KEY AUTOINCREMENT, "\
+                    "filename TEXT, title TEXT, description TEXT, "\
+                    "category TEXT, date_added DATE DEFAULT "\
+                    "(datetime('now','localtime')));"
 
+
+static char *strip_filetype(const char *filename){
+    char t[100];
+    size_t i;
+    strcpy(t, filename);
+    for (i = strlen(t) - 1; i > 0; i--){
+        if (t[i] == '.'){
+            t[i] = '\0';
+            break;
+        }
+        t[i] = '\0';
+    }
+    return strdup(t);     
+}
 
 
 //open db, create table for each folder in media folder
@@ -21,30 +38,25 @@ void *db_open(const char *db_path) {
     struct dirent *dp;
     struct stat stbuf;
     DIR *dfd;
-    const char *dir = MEDIA_FOLDER;
-    char stmt[STMT_MAX];
-    char filename[NAME_MAX];
-    char *table_name;
+    char filename[NAME_MAX*2];
 
-    if ((dfd = opendir(dir)) == NULL){
-        fprintf(stderr, "Could not open %s folder\n Exiting...", dir);
+    if ((dfd = opendir(MEDIA_FOLDER)) == NULL){
+        fprintf(stderr, "Could not open %s folder\n Exiting...\n", MEDIA_FOLDER);
         exit(0);
     }
 
     if (sqlite3_open_v2(db_path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
                         SQLITE_OPEN_FULLMUTEX, NULL) == SQLITE_OK) {
+        fprintf(stdout, CREATE_STMT "\n");
+        sqlite3_exec(db, CREATE_STMT, 0, 0, 0);
         while ((dp = readdir(dfd)) != NULL){
-            sprintf(filename, "%s/%s",dir, dp->d_name);
             if (dp->d_name[0] == '.')
                 continue;
+            sprintf(filename, "%s/%s", MEDIA_FOLDER, dp->d_name);
             if (stat(filename, &stbuf) == -1)
                 continue;
-            if ((stbuf.st_mode & S_IFMT ) == S_IFDIR){
-                table_name = dp->d_name;
-                sprintf(stmt, "%s%s%s", CREATE_STMT_0, table_name, CREATE_STMT_1);
-                fprintf(stdout, "%s\n", stmt);
-                sqlite3_exec(db, stmt, 0, 0, 0);
-                //db_update_table(db, table_name);
+            if ((stbuf.st_mode & S_IFMT) == S_IFDIR){
+                db_update(db, dp->d_name);
             }
         }
     }
@@ -59,53 +71,56 @@ void db_close(void **db_handle) {
   }
 }
 
-int db_get_by_fname(void *db, const char *tablename, const char *fname, struct sql_data *p){
+int db_get_by_fname(void *db, char *cat, char *fname, struct summary *sum){
     sqlite3_stmt *stmt;
-    char sql[STMT_MAX] = "SELECT * FROM ";
-    strcat(sql, tablename);
-    strcat(sql, " WHERE filename=");
-    sprintf(sql, "%s'%s'", sql, fname);
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        printf("error: ", sqlite3_errmsg(db));
-        return;
+    size_t i, res, rc;
+    char sql[STMT_MAX];
+    strcpy(sql, "SELECT * FROM video_master WHERE filename=\'");
+    strcat(sql, fname);
+    strcat(sql, "\' and category=\'");
+    strcat(sql, cat);
+    strcat(sql, "\';");
+    strcpy(sql, "SELECT * FROM video_master;");
+
+    printf("%s\n", sql);
+    //XXX: this is recognized as misuse????
+    rc = sqlite3_prepare_v2(db, sql, strlen(sql), &stmt, NULL);
+    if (rc != SQLITE_OK){
+        fprintf(stdout, "error: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
-    int res = 0;
-    size_t i;
-    p->count = 0;
+    res = 0;
+    i = 0;
+    sum->column = list_init();
+    sum->value = list_init();
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        for (i = 1; i < COLUMN_MAX; i++){
-            strcpy(p->column[i], sqlite3_column_name(stmt, i));
-            strcpy(p->value[i], sqlite3_column_text(stmt, i));
-            p->count++;
-            res = 1;
-        }
-        continue;
+        list_push(sum->column, sqlite3_column_name(stmt, i));
+        list_push(sum->value, sqlite3_column_text(stmt, i));
+        res = 1;
+        i++;
     }
     if (rc != SQLITE_DONE) {
-        printf("error: ", sqlite3_errmsg(db));
+        fprintf(stdout, "error: %s\n", sqlite3_errmsg(db));
     }
     sqlite3_finalize(stmt);
     return res;
 } 
 
 
-int db_get_by_tag(void *db, const char *tablename, const char *category, struct sql_data *p){
-    return 0;
-}
-
-
-void db_add(void *db, const char *tablename, struct sql_data *data){
+void db_add(void *db, struct summary sum){
     size_t i;
-    char stmt[STMT_MAX] = "INSERT INTO ";
-    sprintf(stmt, "%s %s (", stmt, tablename);
-    for (i = 0; i < data->count; i++) {
-        sprintf(stmt, "%s%s,", stmt, data->column[i]);
+    char stmt[STMT_MAX], *t;
+    strcpy(stmt, "INSERT INTO video_master ( ");
+    for (i = 0; (t = list_get(sum.column, i)) != NULL; i++) {
+        strcat(stmt, t);
+        strcat(stmt, ",");
     }
     stmt[strlen(stmt) - 1] = '\0';
     strcat(stmt, ") VALUES ("); 
-    for (i = 0; i < data->count; i++) {
-        sprintf(stmt, "%s'%s',", stmt, data->value[i]);
+    for (i = 0; (t = list_get(sum.value, i)) != NULL; i++) {
+        strcat(stmt, "\"");
+        strcat(stmt, t);
+        strcat(stmt, "\",");
     }
     stmt[strlen(stmt) - 1] = '\0';
     strcat(stmt, ");");
@@ -114,54 +129,40 @@ void db_add(void *db, const char *tablename, struct sql_data *data){
 }
 
 
-void parse_file(struct dirent *dp, struct sql_data *data){
-    //filename
-    strcpy(data->column[0], "filename");
-    sprintf(data->value[0], "'%s'", dp->d_name);
-    //video title
-    char t[100];
-    strcpy(t, dp->d_name);
-    int i;
-    for (i = strlen(t) - 1; i >= 0; i--){
-        if (t[i] == '.'){
-            t[i] = '\0';
-            break;
-        }
-        t[i] = '\0';
-    }
-    strcpy(data->column[1], "title");
-    sprintf(data->value[1], "%s", t);
-    //description
-    strcpy(data->column[2], "description");
-    strcpy(data->value[2], "no description given");
-    //category
-    strcpy(data->column[3], "category");
-    strcpy(data->value[3], "none");
-    //generate a thumbnail
-    data->count = 4;
-}
-
-
-void db_update_table(void *db, const char *tablename){
-    //loop through folder
+void db_update(void *db, const char *cat){
     struct dirent *dp;
     DIR *dfd;
-
-    char dir[NAME_MAX];
-    sprintf(dir, "%s/%s", MEDIA_FOLDER, tablename);
-    if ((dfd = opendir(dir)) == NULL){
-        fprintf(stderr, "Could not open %s folder\n Exiting...", dir);
+    char fpath[NAME_MAX*2], *fname;
+    sprintf(fpath, "%s/%s", MEDIA_FOLDER, cat);
+    if ((dfd = opendir(fpath)) == NULL){
+        fprintf(stderr, "Could not open %s folder\n Exiting...", cat);
         exit(0);
     }
-    //each file put entry in database
-    struct sql_data *data = malloc(sizeof(struct sql_data));
+    //each file is an entry in database
+    struct summary sum;
     while ((dp = readdir(dfd)) != NULL){
-        if (dp->d_name[0] != '.'){
-            if (!db_get_by_fname(dp, tablename, dp->d_name, data) == 0) {
-                parse_file(dp, data);
-                db_add(db, tablename, data);
-            }
+        if (dp->d_name[0] == '.')
+            continue;
+        if (db_get_by_fname(dp, cat, dp->d_name, &sum)){
+            //list_free(sum.column);
+            //list_free(sum.value);
+            continue;
         }
+        sum.column = list_init();
+        sum.value = list_init();
+        list_push(sum.column, "filename");
+        list_push(sum.column, "title");
+        list_push(sum.column, "description");
+        list_push(sum.column, "category");
+
+        fname = strip_filetype(dp->d_name);
+        list_push(sum.value, dp->d_name);
+        list_push(sum.value, fname);
+        list_push(sum.value, "");
+        list_push(sum.value, cat);
+        db_add(db, sum);
+        //list_free(&sum.column);
+        //list_free(&sum.value);
     }
 }
 
@@ -171,7 +172,7 @@ void db_get_tables(void *db, struct list *table_list){
     char sql[STMT_MAX] = "SELECT name FROM sqlite_master WHERE type='table'";
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
-        printf("error: ", sqlite3_errmsg(db));
+        fprintf(stdout, "error: %s\n", sqlite3_errmsg(db));
         return;
     }
     size_t i;
@@ -188,4 +189,21 @@ void db_get_tables(void *db, struct list *table_list){
         printf("error: ", sqlite3_errmsg(db));
     }
     sqlite3_finalize(stmt);
+}
+
+
+void db_get_summaries(void *db, char *cat, struct summary **sum){
+    sqlite3_stmt *stmt;
+    char sql[STMT_MAX];
+    strcpy(sql, "SELECT filename video_title description date_added FROM video_master ");
+    strcat(sql, "WHERE category=\"");
+    strcat(sql, cat);
+    strcat(sql, "\";");
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK){
+        fprintf(stdout, "error: %s\n", sqlite3_errmsg(db));
+        return;
+    }
+    size_t i;
+    //put results in sum
+
 }

@@ -36,7 +36,7 @@ struct list *list_init (void) {
 	return list;
 }
 
-int list_push (struct list *list, char *string) {
+int list_push (struct list *list, char const *string) {
 	/* Check for users doing stupid things  */
 	if (list == NULL) {
 		fprintf(stderr, "The first argument to push needs to be an initialized list!\n");

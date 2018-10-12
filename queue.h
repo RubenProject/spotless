@@ -17,7 +17,7 @@ struct list {
 
 struct list *list_init (void);
 
-int list_push (struct list *list, char *string);
+int list_push (struct list *list, const char *string);
 
 char *list_get(struct list *list, size_t i);
 
