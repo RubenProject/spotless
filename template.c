@@ -8,8 +8,6 @@
 #define CLOSE_TOKEN "%}"
 
 
-
-
 //replace all occurances of s1 with s2 in html
 static void replace(char **html, char *s1, char *s2){
     char *str_s, *str_f, *str_res, *p, *t, *t2;
@@ -58,6 +56,7 @@ static int read_template(const char *loc, char **templ){
         rewind(fp);
         *templ = malloc(fsize * sizeof(char));
         rsize = fread(*templ, 1, fsize, fp);
+	(*templ)[rsize] = '\0';
         if (rsize != fsize){
             fprintf(stderr, "Read error in template\n");
             return 0;
@@ -70,8 +69,12 @@ static int read_template(const char *loc, char **templ){
 
 
 
-void gen_browse_html(char **html){
+void gen_browse_html(char **html, sqlite3 *db, char *table){
     char *div;
+    struct vid_sum *sum;
+    int n, i;
+    char next[1000];
+    strcpy(next, OPEN_TOKEN "VIDEO_DIV" CLOSE_TOKEN);
     if (!read_template(BROWSE_TEMPLATE, html)){
         fprintf(stderr, "Could not open browse template\n");
         return;
@@ -80,6 +83,21 @@ void gen_browse_html(char **html){
         fprintf(stderr, "Could not open videodiv template\n");
         return;
     }
+    db_get_all_sum(db, table, &sum, &n);
+    for (i = 0; i < n; i++){
+	    //printf("%s\n", sum[i].location);
+	    replace(html, "VIDEO_DIV", div);
+	    //replace(html, "VIDEO_TITLE", sum[i].title);
+	    //*html = replace_str(*html, "{%VIDEO_TITLE%}", sum[i].title);
+	    //replace(html, "VIDEO_DESC", sum[i].description);
+	    //replace(html, "VIDEO_THUMB", "web_root/thumb/example.png");
+	    //replace(html, "VIDEO_DESC", "EXAMPLE DESCRIPTION");
+	    replace(html, "VIDEO_APPEND", next);
+	    //sum[i].category;
+    }
+    replace(html, "VIDEO_DIV", " ");
+    free(div);
+    free(sum);
 }
 
 
@@ -111,7 +129,7 @@ void gen_home_html(char **html, struct list *list){
         replace(html, "CAT_TITLE", t);
         replace(html, "CAT_APPEND", next);
     }
-    replace(html, "CAT_DIV", "");
+    replace(html, "CAT_DIV", " ");
     free(div);
     free(t);
 }

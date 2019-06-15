@@ -14,7 +14,7 @@
 #define MEDIA_FOLDER "web_root/media"
 #define NAME_MAX 100
 
-static const char *s_http_port = "8003";
+static const char *s_http_port = "8005";
 static struct mg_serve_http_opts s_http_server_opts;
 static int s_sig_num = 0;
 static void *s_db_handle = NULL;
@@ -176,6 +176,7 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
             fprintf(stdout, "%s\n", hm->uri.p);
             /* homepage request */
             if (strncmp(hm->uri.p, "/", hm->uri.len) == 0){
+		//TODO calculate cat list in gen_home
                 gen_home_html(&html, s_cat_list);
                 mg_send_head(nc, 200, (int)strlen(html), "Content-Type: text/html");
                 mg_printf(nc, "%.*s", (int)strlen(html), html);
@@ -184,8 +185,7 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
             /* category browse request */
             } else if (has_prefix(hm->uri.p, "/browse/", &t)) {
                 fprintf(stdout, "category: %s\n", t);
-                db_get_summaries(s_db_handle, t, &sum);
-                gen_browse_html(&html);
+                gen_browse_html(&html, s_db_handle, t);
                 mg_send_head(nc, 200, (int)strlen(html), "Content-Type: text/html");
                 mg_printf(nc, "%.*s", (int)strlen(html), html);
                 free(t);
@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
         } else if (strcmp(argv[i], "-f") == 0) {
             s_db_path = argv[++i];
         } else if (strcmp(argv[i], "-r") == 0) {
-        s_http_server_opts.document_root = argv[++i];
+            s_http_server_opts.document_root = argv[++i];
         }
     }
 
@@ -247,7 +247,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Cannot open DB [%s]\n", s_db_path);
         exit(EXIT_FAILURE);
     }
-    exit(0);
+
     /* get table info */
     s_cat_list = list_init();
     db_get_tables(s_db_handle, s_cat_list);
